@@ -9,7 +9,7 @@ String the_log = "";
 void Log(String to_log) {
   the_log += "LOG ENTRY----------------- ";
   the_log += get_time_string();
-  the_log += "\n" + to_log + "\n--------------------------\n\n";
+  the_log += "\n" + to_log + "\n\n";
 }
 
 

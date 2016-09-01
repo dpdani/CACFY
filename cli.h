@@ -6,7 +6,6 @@
 #include "lcd.h"
 
 
-
 String readFromConsole() {
   String data = "";
   while(1) {
@@ -25,10 +24,19 @@ String readFromConsole() {
 }
 
 
-void executeCommand(String command) {
-  if(command == "help") {    // == HELP ==
-    Serial.write("HELP GUIDE.\n\nList of commands:\n - help: shows this message.\n - show_analog: shows the value read on analog inputs.\n - show_log: shows the entire log.\n");
+boolean executeCommand(String command) {
+  if(command == "exit") {
+    return true;
+  }
+  else if(command == "help") {    // == HELP ==
+    Serial.write("HELP GUIDE.\n\nList of commands:\n - help: shows this message.\n");
+    Serial.write(" - show_analog: shows the value read on analog inputs.\n");
+    Serial.write(" - show_digital: shows the value of one digital input.\n");
+    Serial.write(" - show_log: shows the entire log.\n");
+    Serial.write(" - show_tasks: shows the list of tasks to be executed.\n");
+    Serial.write(" - free_mem: shows amount of available memory.\n");
     Serial.write(" - set_time: sets internal system time.\n");
+    Serial.write(" - exit: close console mode.\n");
   }
   else if (command == "show_analog") {    // == SHOW_ANALOG ==
     Serial.write("0 -> 0V // 1024 -> 5V\n");
@@ -49,6 +57,29 @@ void executeCommand(String command) {
     Serial.write(" - A14: "); Serial.print(analogRead(A14)); Serial.write("\n");
     Serial.write(" - A15: "); Serial.print(analogRead(A15)); Serial.write("\n");
   }
+  else if (command == "show_digital") {
+    Serial.print("What port? ");
+    String port = readFromConsole();
+    Serial.println(port);
+    if(port == "all") {
+      for(int i=0; i <= 53; i++) {
+        if(i < 10)
+          Serial.print(String("Port  ") + i + ": ");
+        else
+          Serial.print(String("Port ") + i + ": ");
+        if(digitalRead(i) == HIGH)
+          Serial.println("ON");
+         else
+           Serial.println("OFF");
+      }
+      return false;
+    }
+    int port_int = port.toInt();
+    if (digitalRead(port_int) == HIGH)
+      Serial.println("ON");
+    else
+      Serial.println("OFF");
+  }
   else if (command == "show_log") {    // == SHOW_LOG ==
     Serial.print(the_log);
     Log("Log view requested.");
@@ -60,15 +91,15 @@ void executeCommand(String command) {
   else if (command == "set_time") {    // == SET_TIME ==
     Serial.write("System time setting override.\nYear (0 to cancel): ");
     int year = readFromConsole().toInt();
-    if (year == 0) {Serial.write("\n"); return;}
+    if (year == 0) {Serial.write("\n"); return false;}
     Serial.println(year);
     Serial.write("Month (0 to cancel): ");
     int month = readFromConsole().toInt();
-    if (month == 0) {Serial.write("\n"); return;}
+    if (month == 0) {Serial.write("\n"); return false;}
     Serial.println(month);
     Serial.write("Day (0 to cancel): ");
     int day = readFromConsole().toInt();
-    if (day == 0) {Serial.write("\n"); return;}
+    if (day == 0) {Serial.write("\n"); return false;}
     Serial.println(day);
     Serial.write("Cannot cancel from now on.\n");
 //    Serial.write("Day of week (Sunday -> 0, Monday -> 1, ...): ");
@@ -94,6 +125,7 @@ void executeCommand(String command) {
     Serial.print(command);
     Serial.write("\n");
   }
+  return false;
 }
 
 
@@ -109,19 +141,24 @@ void startConsoleMode() {
       Serial.write("Access granted.\n");
       break;
     }
+    else if(password == "")
+      return;
     else {
       Log(String("Wrong password entered: ") + password);
       Serial.write("Incorrect password.\n");
     }
   }
   Log("Console opened");
-  Serial.write("Console is opened. Check the 'help' command in need.\nTo close the console unplug the device.\n\n");
+  Serial.write("Console is opened. Check the 'help' command in need.\nTo close the console use the 'exit' command.\n\n");
   while(Serial) {
     Serial.write("$ ");
     String command = readFromConsole();
     if (command.length() > 0) {
       Serial.println(command);
-      executeCommand(command);
+      if(executeCommand(command)) {
+        Log("Console closed.");
+        return;  // executeCommand returns true if it has been asked to exit
+      }
     } else Serial.write("\n");
   }
   Log("Console closed.");

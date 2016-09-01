@@ -15,9 +15,7 @@ uint32_t syncProvider() {
   rtc.now().unixtime();
 }
 
-
-String get_time_string() {
-  DateTime t = rtc.now();
+String get_time_string(DateTime t) {
   String str = "";
   if(t.day() < 10)
     str += String("0") + t.day();
@@ -46,6 +44,10 @@ String get_time_string() {
   else
     str += t.second();
   return str;
+}
+
+String get_time_string() {
+  return get_time_string(rtc.now());
 }
 
 String get_lcd_time_string() {

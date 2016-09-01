@@ -7,6 +7,7 @@
 LiquidCrystal lcd(8,9,4,5,6,7);
 
 String lcd_status_string = "OK";  // Global status string.
+String lcd_rendered_status_string = "";
 DateTime last_lcd_idle_update;
 
 String lcd_current_string_top = "";
@@ -27,10 +28,9 @@ void lcd_write(String str_top, String str_bottom) {
 
 
 void lcd_idle() {
-  // TODO: automatic refresh.
-  // Serial.println((rtc.now() - last_lcd_idle_update - TimeSpan(0,0,0,10)).seconds());
-  if((rtc.now() - last_lcd_idle_update).seconds() < 1)  // don't update LCD unless 1 second passed since last update
+  if((rtc.now() - last_lcd_idle_update).seconds() < 1 && lcd_rendered_status_string == lcd_status_string)  // don't update LCD unless 1 second passed since last update
     return;
+  lcd_rendered_status_string = lcd_status_string;
   lcd_write(get_lcd_time_string(), lcd_status_string);
   last_lcd_idle_update = rtc.now();
 }

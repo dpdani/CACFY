@@ -17,7 +17,7 @@
 #define PIN_CONTROL_POZZO_3 43
 #define PIN_ENABLE_CONSOLE 50
 
-#define MINUTES_BEFORE_POZZO_CLOSE 1
+#define MINUTES_BEFORE_POZZO_CLOSE 20
 
 
 enum Level {
@@ -156,6 +156,7 @@ void loop() {
     Log("Starting console mode.");
     close_everything();
     set_state_idle();
+    taskmgr_init();  // Flush pending tasks
     startConsoleMode();
     lcd_status_string = "OK";  // Console mode quitted.
   }
@@ -172,6 +173,18 @@ void loop() {
     set_state_idle();
     taskmgr_init();  // Re-initialize taskmrg to flush previous tasks
   }
+  if(current_state == Filling) {
+    if(last_pozzo_used == Pozzo1 && pozzo_1 == Min ||
+       last_pozzo_used == Pozzo2 && pozzo_2 == Min ||
+       last_pozzo_used == Pozzo3 && pozzo_3 == Min) {
+      for(int i=0; i < MAX_AWAITING_TASKS; i++) {
+        if(awaiting_tasks[i] != Nothing) {
+          awaiting_tasks_time[i] = rtc.now() - TimeSpan(1,0,0,0);  // Set to yesterday
+        }
+      }
+      taskmgr_tick();
+    }
+  }
   // Start filling
   if(cisterna != Max && current_state == Idle) {
     // if cisterna isn't filled and the we're not already filling it
@@ -179,7 +192,7 @@ void loop() {
       open_pozzo_2();
       current_state = Filling;
       last_pozzo_used = Pozzo2;
-//      DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
+      //DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
       DateTime when = rtc.now() + TimeSpan(0,0, 0, 10);
       taskmgr_add_task(Close_Pozzo2, when);
       taskmgr_add_task(SetIdle, when);
@@ -188,7 +201,7 @@ void loop() {
       open_pozzo_3();
       current_state = Filling;
       last_pozzo_used = Pozzo3;
-//      DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);/
+//      DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
       DateTime when = rtc.now() + TimeSpan(0,0, 0, 10);
       taskmgr_add_task(Close_Pozzo3, when);
       taskmgr_add_task(SetIdle, when);
@@ -197,7 +210,7 @@ void loop() {
       open_pozzo_1();
       current_state = Filling;
       last_pozzo_used = Pozzo1;
-//      DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);/
+//      DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
       DateTime when = rtc.now() + TimeSpan(0,0, 0, 10);
       taskmgr_add_task(Close_Pozzo1, when);
       taskmgr_add_task(SetIdle, when);

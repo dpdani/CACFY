@@ -130,8 +130,6 @@ boolean executeCommand(String command) {
 
 
 void startConsoleMode() {
-  lcd_status_string = "  CONSOLE MODE";
-  delay(100);
   Serial.write("CONSOLE MODE\n\n");
   while(Serial) {
     Serial.write("Password: ");

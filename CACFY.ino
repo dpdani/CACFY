@@ -9,15 +9,16 @@
 #define PIN_MIN_POZZO_2 32
 #define PIN_MIN_POZZO_3 33
 #define PIN_MAX_CISTERNA 35
-#define PIN_MAX_POZZO_1 36
-#define PIN_MAX_POZZO_2 37
-#define PIN_MAX_POZZO_3 38
 #define PIN_CONTROL_POZZO_1 41
 #define PIN_CONTROL_POZZO_2 42
 #define PIN_CONTROL_POZZO_3 43
 #define PIN_ENABLE_CONSOLE 50
+#define PIN_WATERING_CONTROL 46
 
 #define MINUTES_BEFORE_POZZO_CLOSE 20
+
+#define RELAY_ON HIGH
+#define RELAY_OFF LOW
 
 
 enum Level {
@@ -55,57 +56,51 @@ Level get_level_cisterna() {
 }
 
 Level get_level_pozzo_1() {
-  if(digitalRead(PIN_MAX_POZZO_1) == LOW && digitalRead(PIN_MIN_POZZO_1) == LOW)
+  if(digitalRead(PIN_MIN_POZZO_1) == LOW)
     return Min;
-  if(digitalRead(PIN_MAX_POZZO_1) == HIGH && digitalRead(PIN_MAX_POZZO_1) == HIGH)
-    return Max;
   return Ok;
 }
 
 Level get_level_pozzo_2() {
-  if(digitalRead(PIN_MAX_POZZO_2) == LOW && digitalRead(PIN_MIN_POZZO_2) == LOW)
+  if(digitalRead(PIN_MIN_POZZO_2) == LOW)
     return Min;
-  if(digitalRead(PIN_MAX_POZZO_2) == HIGH && digitalRead(PIN_MAX_POZZO_2) == HIGH)
-    return Max;
   return Ok;
 }
 
 Level get_level_pozzo_3() {
-  if(digitalRead(PIN_MAX_POZZO_3) == LOW && digitalRead(PIN_MIN_POZZO_3) == LOW)
+  if(digitalRead(PIN_MIN_POZZO_3) == LOW)
     return Min;
-  if(digitalRead(PIN_MAX_POZZO_3) == HIGH && digitalRead(PIN_MAX_POZZO_3) == HIGH)
-    return Max;
   return Ok;
 }
 
 void open_pozzo_1() {
   Log("Opening pozzo 1.");
-  digitalWrite(PIN_CONTROL_POZZO_1, HIGH);
+  digitalWrite(PIN_CONTROL_POZZO_1, RELAY_ON);
 }
 
 void open_pozzo_2() {
   Log("Opening pozzo 2.");
-  digitalWrite(PIN_CONTROL_POZZO_2, HIGH);
+  digitalWrite(PIN_CONTROL_POZZO_2, RELAY_ON);
 }
 
 void open_pozzo_3() {
   Log("Opening pozzo 3.");
-  digitalWrite(PIN_CONTROL_POZZO_3, HIGH);
+  digitalWrite(PIN_CONTROL_POZZO_3, RELAY_ON);
 }
 
 void close_pozzo_1() {
   Log("Closing pozzo 1.");
-  digitalWrite(PIN_CONTROL_POZZO_1, LOW);
+  digitalWrite(PIN_CONTROL_POZZO_1, RELAY_OFF);
 }
 
 void close_pozzo_2() {
   Log("Closing pozzo 2.");
-  digitalWrite(PIN_CONTROL_POZZO_2, LOW);
+  digitalWrite(PIN_CONTROL_POZZO_2, RELAY_OFF);
 }
 
 void close_pozzo_3() {
   Log("Closing pozzo 3.");
-  digitalWrite(PIN_CONTROL_POZZO_3, LOW);
+  digitalWrite(PIN_CONTROL_POZZO_3, RELAY_OFF);
 }
 
 void close_everything() {
@@ -132,13 +127,14 @@ void setup() {
   pinMode(PIN_MIN_POZZO_2, INPUT);
   pinMode(PIN_MIN_POZZO_3, INPUT);
   pinMode(PIN_MAX_CISTERNA, INPUT);
-  pinMode(PIN_MAX_POZZO_1, INPUT);
-  pinMode(PIN_MAX_POZZO_2, INPUT);
-  pinMode(PIN_MAX_POZZO_3, INPUT);
   pinMode(PIN_CONTROL_POZZO_1, OUTPUT);
   pinMode(PIN_CONTROL_POZZO_2, OUTPUT);
   pinMode(PIN_CONTROL_POZZO_3, OUTPUT);
+  pinMode(PIN_WATERING_CONTROL, OUTPUT);
   pinMode(PIN_ENABLE_CONSOLE, INPUT);
+  digitalWrite(PIN_CONTROL_POZZO_1, RELAY_OFF);
+  digitalWrite(PIN_CONTROL_POZZO_2, RELAY_OFF);
+  digitalWrite(PIN_CONTROL_POZZO_3, RELAY_OFF);
   Serial.begin(115200);
   Wire.begin();
   rtc.begin();
@@ -154,6 +150,8 @@ void loop() {
   // Open console mode on request
   if(digitalRead(PIN_ENABLE_CONSOLE) == HIGH) {
     Log("Starting console mode.");
+    lcd_status_string = "  CONSOLE MODE";
+    lcd_idle();
     close_everything();
     set_state_idle();
     taskmgr_init();  // Flush pending tasks
@@ -167,11 +165,11 @@ void loop() {
   pozzo_1 = get_level_pozzo_1();
   pozzo_2 = get_level_pozzo_2();
   pozzo_3 = get_level_pozzo_3();
-  // Security check
+  // Security checks
   if(current_state == Filling && cisterna == Max) {
     close_everything();
     set_state_idle();
-    taskmgr_init();  // Re-initialize taskmrg to flush previous tasks
+    taskmgr_init();  // Flush pending tasks
   }
   if(current_state == Filling) {
     if(last_pozzo_used == Pozzo1 && pozzo_1 == Min ||
@@ -185,35 +183,49 @@ void loop() {
       taskmgr_tick();
     }
   }
+  if(cisterna == Min) {
+    digitalWrite(PIN_WATERING_CONTROL, RELAY_OFF);
+    lcd_status_string = "Cisterna is low!";
+  }
+  else {
+    digitalWrite(PIN_WATERING_CONTROL, RELAY_ON);
+    lcd_status_string = "OK";
+  }
   // Start filling
   if(cisterna != Max && current_state == Idle) {
     // if cisterna isn't filled and the we're not already filling it
     if(last_pozzo_used == Pozzo1) {
-      open_pozzo_2();
-      current_state = Filling;
+      if(pozzo_2 != Min) {
+        open_pozzo_2();
+        current_state = Filling;
+        //DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
+        DateTime when = rtc.now() + TimeSpan(0,0,0, 5);
+        taskmgr_add_task(Close_Pozzo2, when);
+        taskmgr_add_task(SetIdle, when);
+      }
       last_pozzo_used = Pozzo2;
-      //DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
-      DateTime when = rtc.now() + TimeSpan(0,0, 0, 10);
-      taskmgr_add_task(Close_Pozzo2, when);
-      taskmgr_add_task(SetIdle, when);
     }
     else if(last_pozzo_used == Pozzo2) {
-      open_pozzo_3();
-      current_state = Filling;
+      if(pozzo_3 != Min) {
+        open_pozzo_3();
+        current_state = Filling;
+//        DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
+        DateTime when = rtc.now() + TimeSpan(0,0,0, 5);
+        taskmgr_add_task(Close_Pozzo3, when);
+        taskmgr_add_task(SetIdle, when);
+      }
       last_pozzo_used = Pozzo3;
-//      DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
-      DateTime when = rtc.now() + TimeSpan(0,0, 0, 10);
-      taskmgr_add_task(Close_Pozzo3, when);
-      taskmgr_add_task(SetIdle, when);
     }
     else if(last_pozzo_used == Pozzo3) {
-      open_pozzo_1();
-      current_state = Filling;
+      if(pozzo_1 != Min) {
+        open_pozzo_1();
+        current_state = Filling;
+  //      DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
+        DateTime when = rtc.now() + TimeSpan(0,0,0, 5);
+        taskmgr_add_task(Close_Pozzo1, when);
+        taskmgr_add_task(SetIdle, when);
+      }
       last_pozzo_used = Pozzo1;
-//      DateTime when = rtc.now() + TimeSpan(0,0, MINUTES_BEFORE_POZZO_CLOSE, 0);
-      DateTime when = rtc.now() + TimeSpan(0,0, 0, 10);
-      taskmgr_add_task(Close_Pozzo1, when);
-      taskmgr_add_task(SetIdle, when);
     }
   }
   // Look for tasks to be done

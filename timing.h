@@ -6,6 +6,11 @@
 #include <Time.h>
 #include <TimeAlarms.h>
 
+
+#define DAYTIME_MIN_HOUR 8
+#define DAYTIME_MAX_HOUR 19
+
+
 // Using a DS3231
 RTC_DS3231 rtc;
 
@@ -75,6 +80,17 @@ String get_lcd_time_string() {
   else
     str += t.minute();
   return str;
+}
+
+
+bool is_daytime(DateTime t) {
+  if(DAYTIME_MIN_HOUR < t.hour() < DAYTIME_MAX_HOUR)
+    return true;
+  return false;
+}
+
+bool is_daytime() {
+  return is_daytime(rtc.now());
 }
 
 
